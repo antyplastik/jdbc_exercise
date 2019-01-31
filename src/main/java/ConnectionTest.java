@@ -1,5 +1,3 @@
-import com.sun.xml.internal.ws.api.ha.StickyFeature;
-
 import java.sql.*;
 
 public class ConnectionTest {
@@ -13,7 +11,7 @@ public class ConnectionTest {
             e.printStackTrace();
         }
 
-        System.out.println(queryResoult(args, "SELECT title, releaseDate, description FROM moviesInfo "));
+        System.out.println(queryResoult(args, "SELECT title, releaseDate, description FROM moviesinfo "));
 //        addDescToMovieInfo(1, "this film is about nothing", connection);
 
 
