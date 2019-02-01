@@ -1,3 +1,4 @@
+import java.math.BigDecimal;
 import java.sql.*;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -9,7 +10,7 @@ public class RentMovieService {
             System.out.println("[INFO] Connected to database");
 
             final int customerId = 1;
-            final int copyId = 2;
+            final int copyId = 3;
             rentCopyToCustomer(copyId, customerId, connection);
 
         } catch (SQLException e) {
@@ -20,23 +21,27 @@ public class RentMovieService {
 
     private static void rentCopyToCustomer(int copyId, int customerId, Connection connection) throws SQLException {
         int isCopyUpdated = updateMoviesCopies(copyId, 1, getRentedTimes(copyId, connection) + 1, customerId, connection);
-        if (isCopyUpdated == 1) {
-            insertIntoRents(copyId, customerId, RentStatus.IN_RENT,
-                    getRentPricePerDay(getReleaseDate(copyId)), java.sql.Date.valueOf(LocalDate.now()), connection);
+        if (isCopyUpdated > 0) {
+            int insertSuccess = insertIntoRents(copyId, customerId, RentStatus.IN_RENT,
+                    getRentPricePerDayStartValue(customerId, connection), java.sql.Date.valueOf(LocalDate.now()), connection); //getRentPricePerDayStartValue(getReleaseDate(copyId))
+            if (insertSuccess > 0)
+                System.out.println(String.format("[INFO] The film about id %d was properly loaned out to the user with ID %d", copyId, customerId));
         } else
             updateMoviesCopies(copyId, getIsCopyRentedStatus(copyId, connection), getRentedTimes(copyId, connection) - 1, customerId, connection);
     }
 
 
     private static int insertIntoRents(final int copyId, final int customer, final RentStatus status,
-                                       final double rentPricePerDay, final java.sql.Date rentedDate, final Connection connection) throws SQLException { // <=== NAPISAC
-        String parametrizedQuery = "INSERT INTO rents (rentedMovieId = ?, isRented = ?, rentPricePerDay = ?, rentedDate = ? WHERE customerId = ?";
+                                           final BigDecimal rentPricePerDay, final java.sql.Date rentedDate, final Connection connection) throws SQLException { // <=== NAPISAC
+        String parametrizedQuery = "INSERT INTO rents (rentedMovieId, customer, status, rentPricePerDay, rentedDate) VALUES(?,?,?,?,?)";
 
         PreparedStatement preparedStatement = connection.prepareStatement(parametrizedQuery);
         preparedStatement.setInt(1, copyId);
-        preparedStatement.setString(2, status.getStatus());
-        preparedStatement.setDate(3, rentedDate);
-        preparedStatement.setInt(4, customer);
+        preparedStatement.setInt(2, customer);
+        preparedStatement.setString(3, status.getStatus());
+        preparedStatement.setDouble(4, Double.valueOf(rentPricePerDay.toPlainString()));
+        preparedStatement.setDate(5, rentedDate);
+
 
         return preparedStatement.executeUpdate();
     }
@@ -49,9 +54,20 @@ public class RentMovieService {
         return null;
     }
 
-    private static double getRentPricePerDay(final int rentedMovieId){
+    private static BigDecimal getRentPricePerDayStartValue(final int rentedMovieId, Connection connection) throws SQLException {
+        String parametrizedQuery = "SELECT rentPricePerDay from rents where rentedMovieId = ?";
 
-        return 0;
+        BigDecimal rentPricePerDay = new BigDecimal("0.00");
+        try (PreparedStatement preparedStatement = connection.prepareStatement(parametrizedQuery)) {
+            preparedStatement.setInt(1, rentedMovieId);
+
+            try (ResultSet resultSet = preparedStatement.executeQuery()) {
+                while (resultSet.next()) {
+                    rentPricePerDay = resultSet.getBigDecimal("rentPricePerDay");
+                }
+            }
+        }
+        return rentPricePerDay;
     }
 
     private static double getRentPricePerDay(final LocalDate releaseDate) {
@@ -98,7 +114,7 @@ public class RentMovieService {
         try (PreparedStatement preparedStatement = connection.prepareStatement(parametrizedQuery)) {
             preparedStatement.setInt(1, copyId);
 
-            try(ResultSet resultSet = preparedStatement.executeQuery()){
+            try (ResultSet resultSet = preparedStatement.executeQuery()) {
                 while (resultSet.next())
                     result = resultSet.getInt("isRented");
             }
